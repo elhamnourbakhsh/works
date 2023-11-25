@@ -1,0 +1,47 @@
+import os
+import time
+#import psutil
+import requests
+import json
+from requests.auth import HTTPBasicAuth
+from prometheus_client import start_http_server, Gauge
+
+cloud_monitoring_url = "/monitoring"
+controllers = ['controller-dev.loclhost']
+cloud_monitoring_url_username = ''
+cloud_monitoring_url_password = ''
+
+class CloudMonitoring:
+   def __init__(self, polling_seconds=10):
+       self.polling_seconds = polling_seconds
+       self.available_public_ip = Gauge("available_public_ip", "Available Public IP", ['dc'])
+       self.available_private_ip = Gauge("available_private_ip", "Available Private IP", ['dc'])
+       self.available_storage = Gauge("available_storage", "Available Storage", ['dc', 'storagename'])
+
+   def loop(self):
+
+       while True:
+           self.fetch()
+           time.sleep(self.polling_seconds)
+
+   def fetch(self):
+
+        for controller in controllers :
+            url='http://' + controller + cloud_monitoring_url
+            response= requests.get(url=url,auth=HTTPBasicAuth(cloud_monitoring_url_username,cloud_monitoring_url_password))
+            result = json.loads(response.text)
+            self.available_public_ip.labels(dc=controller).set(int(result['available_public_ip']))
+            self.available_private_ip.labels(dc=controller).set(int(result['available_private_ip']))
+            if result['storage']:
+                for storage in dict(result['storage']).keys():
+                    self.available_storage.labels(dc=controller, storagename=storage).set(result['storage'][storage])
+            else:
+                pass
+
+def main():
+    cloud_monitoring = CloudMonitoring(polling_seconds=5)
+    start_http_server(9101)
+    cloud_monitoring.loop()
+
+if __name__ == "__main__":
+    main()
