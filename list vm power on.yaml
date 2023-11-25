@@ -1,0 +1,26 @@
+apt  install python3-jmespath
+
+
+---
+- name: Gather all VMs informationtt
+  vmware_vm_info:
+    hostname: '{{ vcenter_server }}'
+    username: '{{ vcenter_user }}'
+    password: '{{ vcenter_pass }}'
+    validate_certs: false
+  register: all_vm_info
+  delegate_to: localhost
+
+- name: Gather a list of all powered on VMs
+  set_fact:
+    on_vm: "{{ all_vm_info.virtual_machines | json_query(query) }}"
+  vars:
+    query: "[?power_state=='poweredOn']"
+  register: jsoncontent
+
+- name: Gather a list of all powered on VM names
+  debug: msg="{{ on_vm | json_query(jmesquery) }}"
+  vars:
+     jmesquery: "[*].{guest_name: guest_name, ip_address: ip_address}"
+
+
